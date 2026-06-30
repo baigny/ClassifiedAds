@@ -1,0 +1,204 @@
+{
+  "id": "bazaar-whatsapp-bot-001",
+  "name": "Bazaar — WhatsApp Search Bot (WAHA)",
+  "nodes": [
+    {
+      "parameters": {
+        "httpMethod": "POST",
+        "path": "waha-listener",
+        "responseMode": "onReceived",
+        "options": {}
+      },
+      "id": "waha-node-0001",
+      "name": "WAHA Webhook",
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 1,
+      "position": [
+        240,
+        300
+      ],
+      "webhookId": "a1b2c3d4-e5f6-7890-abcd-ef1234567890",
+      "notes": "WAHA POSTs every incoming message here. responseMode=onReceived means n8n replies 200 OK immediately, then continues processing asynchronously."
+    },
+    {
+      "parameters": {
+        "jsCode": "// ── Configuration ────────────────────────────────────────────────────────\nconst ALLOWED_CHATS = [\n  '120363223934343497@g.us',   // NaaF group\n];\n\n// ── Parse WAHA webhook payload ────────────────────────────────────────────\nconst body = $input.first().json.body;\nconst payload = body.payload || {};\n\n// Always ignore messages sent by the bot itself (avoids feedback loops)\nif (payload.fromMe) return [];\n\n// ── Find the group/chat JID robustly ─────────────────────────────────────\n// Real WAHA group messages: from = sender JID, to = group JID\n// Some WEBJS builds set from = group JID — check both.\nconst rawFrom = payload.from || '';\nconst rawTo   = payload.to   || '';\nconst chatId  = rawFrom.endsWith('@g.us') ? rawFrom\n              : rawTo.endsWith('@g.us')   ? rawTo\n              : rawFrom;\n\nif (!chatId || !ALLOWED_CHATS.includes(chatId)) return [];\n\n// userId = the individual human sender's JID (used as session key)\n// Normalise: multi-device WhatsApp can use @lid instead of @c.us for same user\nconst userId = rawFrom.replace(/@lid$/, '@c.us');\n\n// ── Extract message ID (used for reply-quoting) ───────────────────────────\nconst rawId   = payload.id;\nconst messageId = typeof rawId === 'string' ? rawId\n                : (rawId?._serialized || rawId?.id || '');\n\nconst text = (payload.body || '').trim();\n\n// ── Detect intent ─────────────────────────────────────────────────────────\nconst result = detectIntent(text);\nif (!result) return [];\n\nreturn [{ json: { ...result, chatId, userId, messageId } }];\n\n// ─────────────────────────────────────────────────────────────────────────\nfunction detectIntent(t) {\n  const lower = t.toLowerCase().trim();\n\n  // \"Yes / Show more\" — must be the *entire* message (short affirmative)\n  if (/^(yes|yeah|yep|sure|ok|okay|show more|more|next|more results|yes please|please|go ahead|continue|show|haan|ha|haa|aur dikhao|more dikhao)[\\s.!?]*$/.test(lower)) {\n    return { intent: 'more' };\n  }\n\n  // \"No / Stop\" — must be the *entire* message (short negative)\n  if (/^(no|nope|nah|stop|that'?s (fine|ok|okay|all|enough)|no thanks|no need|i'?m good|done|enough|bas|nahi|na|thats all|that is all)[\\s.!?]*$/.test(lower)) {\n    return { intent: 'stop' };\n  }\n\n  // New search query — extract keyword\n  const keyword = detectKeyword(lower);\n  if (keyword) return { intent: 'search', keyword };\n\n  return null;\n}\n\nfunction detectKeyword(t) {\n  const patterns = [\n    /looking for (.+)/i,\n    /searching for (.+)/i,\n    /search for (.+)/i,\n    /look for (.+)/i,\n    /find (?:me |a |an )?(.+)/i,\n    /need (.+)/i,\n    /want (.+)/i,\n    /anyone (?:have|has|know|selling|recommend) (.+)/i,\n    /know any (.+)/i,\n    /any (.+) available/i,\n    /any good (.+)/i,\n    /where (?:can i|do i) (?:get|find|buy) (.+)/i,\n    /(?:can you |please )?(?:help me |tell me )?(?:find|get|locate) (?:a |an )?(.+)/i,\n    /recommend (.+)/i,\n    /suggest (.+)/i,\n    /good (.+) (?:nearby|near me|in \\w+)/i,\n    /(.+) chahiye/i,\n    /(.+) koi hai/i,\n    /dhundh raha (?:hoon|hai) (.+)/i,\n    /mujhe (.+) chahiye/i,\n    /koi accha (.+)/i,\n    /best (.+) near/i,\n    /best (.+) in/i,\n  ];\n  const cleaned = (t || '').toLowerCase().trim();\n  for (const p of patterns) {\n    const m = cleaned.match(p);\n    if (m) return m[1].trim().replace(/[?.!,]+$/, '').trim();\n  }\n  return null;\n}\n"
+      },
+      "id": "waha-node-0002",
+      "name": "Filter & Detect Intent",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        460,
+        300
+      ],
+      "notes": "Strict whitelist: only chats in ALLOWED_CHATS get a response (both groups @g.us and individual contacts @c.us). Empty list = bot paused. Returns empty array to stop execution if not whitelisted or no search intent found."
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "https://eucjgaotitktharsllws.supabase.co/functions/v1/search-listings",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "Authorization",
+              "value": "Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImV1Y2pnYW90aXRrdGhhcnNsbHdzIiwicm9sZSI6ImFub24iLCJpYXQiOjE3Nzg2NjEyMjQsImV4cCI6MjA5NDIzNzIyNH0.UWGl9GLaeBO7afTnYYnzkCHQeKgEQDP_1i8wUErFUFk"
+            },
+            {
+              "name": "apikey",
+              "value": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImV1Y2pnYW90aXRrdGhhcnNsbHdzIiwicm9sZSI6ImFub24iLCJpYXQiOjE3Nzg2NjEyMjQsImV4cCI6MjA5NDIzNzIyNH0.UWGl9GLaeBO7afTnYYnzkCHQeKgEQDP_1i8wUErFUFk"
+            },
+            {
+              "name": "Content-Type",
+              "value": "application/json"
+            }
+          ]
+        },
+        "sendBody": true,
+        "bodyParameters": {
+          "parameters": [
+            {
+              "name": "intent",
+              "value": "={{ $json.intent }}"
+            },
+            {
+              "name": "query",
+              "value": "={{ $json.keyword ?? \"\" }}"
+            },
+            {
+              "name": "userId",
+              "value": "={{ $json.userId }}"
+            },
+            {
+              "name": "chatId",
+              "value": "={{ $json.chatId }}"
+            },
+            {
+              "name": "limit",
+              "value": "3"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "id": "waha-node-0003",
+      "name": "Search Listings",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4,
+      "position": [
+        680,
+        300
+      ],
+      "notes": "Calls the Supabase Edge Function. Google Places is the PRIMARY source. If a manually-added DB listing has a matching name, it enriches that Google result (adds price, phone, listing-page link). Unique DB-only listings are appended after Google results."
+    },
+    {
+      "parameters": {
+        "jsCode": "// ── Configuration ────────────────────────────────────────────────────────\nconst APP_BASE_URL = 'http://localhost:5173';\n\nconst result    = $input.first().json;\nconst filterOut = $('Filter & Detect Intent').first().json;\n\nconst webhookPayload = $('WAHA Webhook').first().json.body?.payload || {};\nconst rawFrom = webhookPayload.from || '';\nconst rawTo   = webhookPayload.to   || '';\n\n// Group JID (same logic as Filter node; fromMe already blocked there)\nconst chatId = rawFrom.endsWith('@g.us') ? rawFrom\n             : rawTo.endsWith('@g.us')   ? rawTo\n             : rawFrom;\n\nconst messageId = filterOut.messageId || '';\n\n// ── Build reply text ──────────────────────────────────────────────────────\nlet text;\n\nif (result.stopped) {\n  // User said \"No\" — session was deleted\n  text = 'Got it! Let me know if you need help finding anything else. \\uD83D\\uDC4D';\n\n} else if (result.error === 'session_expired') {\n  // No reply within 15 seconds — session auto-cleared\n  text = 'Session timed out \\u23F1\\uFE0F\\nPlease send your search again to start fresh!';\n\n} else if (result.error === 'no_session') {\n  // User sent Yes without a prior search (no session found at all)\n  text = 'I lost track of your previous search \\uD83D\\uDE10\\nPlease re-send what you were looking for and I\\'ll show you more results!';\n\n} else {\n  const listings = result.listings || [];\n  const keyword  = result.query || filterOut.keyword || '';\n  const isMore   = filterOut.intent === 'more';\n\n  if (listings.length === 0) {\n    text = 'Sorry, no' + (isMore ? ' more' : '') + ' results found for *\\u201C' + keyword + '\\u201D*.'\n         + (isMore ? '' : '\\n\\nPost your business at: ' + APP_BASE_URL);\n\n  } else {\n    const header = '\\uD83D\\uDD0D ' + (isMore ? 'More results' : 'Results') + ' for *\\u201C' + keyword + '\\u201D*:';\n\n    const lines = listings.map(function(l, i) {\n      const profile = l.profiles || {};\n      const price   = l.price > 0\n        ? '\\u20B9' + Number(l.price).toLocaleString('en-IN')\n        : 'Contact for price';\n      const city  = profile.city  ? '\\uD83D\\uDCCD ' + profile.city  : '';\n      const phone = profile.phone ? '\\uD83D\\uDCDE ' + profile.phone : '';\n\n      const isDb   = l._source === 'db';\n      const hasMaps = !!l._mapsUrl;\n      let link;\n      if (isDb && hasMaps) {\n        link = '\\uD83D\\uDD17 ' + APP_BASE_URL + '/listings/' + l.id\n             + '\\n   \\uD83D\\uDDFA\\uFE0F ' + l._mapsUrl;\n      } else if (isDb) {\n        link = '\\uD83D\\uDD17 ' + APP_BASE_URL + '/listings/' + l.id;\n      } else {\n        link = '\\uD83D\\uDDFA\\uFE0F ' + l._mapsUrl;\n      }\n\n      const details = [city, phone].filter(Boolean).join('  ');\n      return (i + 1) + '. *' + l.title + '* \\u2014 ' + price\n           + '\\n   ' + details\n           + '\\n   ' + link;\n    });\n\n    const footer = result.hasMore\n      ? '\\n\\n\\uD83D\\uDCAC *Do you want more recommendations?* Reply *Yes* or *No*.'\n      : '\\n\\n\\u2705 Those are all the recommendations I have!';\n\n    text = header + '\\n\\n' + lines.join('\\n\\n') + footer;\n  }\n}\n\nreturn [{ json: { chatId, text, messageId } }];\n"
+      },
+      "id": "waha-node-0004",
+      "name": "Format Reply",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        900,
+        300
+      ],
+      "notes": "Link logic uses _source from the Edge Function: (a) DB + enriched (maps_url stored) → 🔗 listing page + 🗺️ Maps link; (b) DB not yet enriched → 🔗 listing page only; (c) Google-only result → 🗺️ Maps link only."
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "http://waha:3000/api/sendText",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "X-Api-Key",
+              "value": "408b7192498743eebb346e64da033be5"
+            }
+          ]
+        },
+        "sendBody": true,
+        "bodyParameters": {
+          "parameters": [
+            {
+              "name": "chatId",
+              "value": "={{ $json.chatId }}"
+            },
+            {
+              "name": "text",
+              "value": "={{ $json.text }}"
+            },
+            {
+              "name": "session",
+              "value": "default"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "id": "waha-node-0005",
+      "name": "Send via WAHA",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4,
+      "position": [
+        1120,
+        300
+      ],
+      "notes": "Sends the reply back to the WhatsApp group via WAHA REST API. The URL uses the Docker service name 'waha' (internal Docker network)."
+    }
+  ],
+  "connections": {
+    "WAHA Webhook": {
+      "main": [
+        [
+          {
+            "node": "Filter & Detect Intent",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Filter & Detect Intent": {
+      "main": [
+        [
+          {
+            "node": "Search Listings",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Search Listings": {
+      "main": [
+        [
+          {
+            "node": "Format Reply",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Format Reply": {
+      "main": [
+        [
+          {
+            "node": "Send via WAHA",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "active": true,
+  "settings": {
+    "executionOrder": "v1"
+  },
+  "staticData": null,
+  "tags": []
+}

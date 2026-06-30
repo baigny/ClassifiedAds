@@ -1,0 +1,38 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(find:*)",
+      "Bash(npx tsc:*)",
+      "Bash(./node_modules/.bin/tsc:*)",
+      "Bash(ls:*)",
+      "Bash(grep:*)",
+      "Bash(npm audit:*)",
+      "WebFetch(domain:waha.devlike.pro)",
+      "WebFetch(domain:n8n.io)",
+      "Read(//c/Projects/Web_Applications/**)",
+      "Bash(wc:*)",
+      "Bash(docker info:*)",
+      "Bash(wsl:*)",
+      "Bash(curl:*)",
+      "Bash(docker exec:*)",
+      "Bash(docker run:*)",
+      "Read(//c/ProgramData/**)",
+      "Read(//c/Users/NabilBaig/**)",
+      "Bash(node:*)",
+      "Bash(docker compose:*)",
+      "Bash(docker volume rm:*)",
+      "Bash(docker cp:*)",
+      "Bash(python3:*)",
+      "WebFetch(domain:github.com)",
+      "Bash(npx supabase functions deploy:*)",
+      "Bash('/c/Projects/Web_Applications/ClassifiedAds/n8n/debug_filter.tmp.js':*)",
+      "Bash(MSYS_NO_PATHCONV=1 docker compose:*)",
+      "Bash(MSYS_NO_PATHCONV=1 docker exec:*)"
+    ],
+    "additionalDirectories": [
+      "C:\\Projects\\Web_Applications\\ClassifiedAds\\whatsapp-bot",
+      "\\tmp\\sqlite_work",
+      "\\tmp"
+    ]
+  }
+}

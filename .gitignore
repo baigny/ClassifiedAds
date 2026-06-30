@@ -1,0 +1,28 @@
+# Dependencies
+node_modules/
+
+# Build output
+dist/
+dist-ssr/
+
+# Environment variables (never commit real credentials)
+.env.*.local
+
+# TanStack Router auto-generated temp files
+.tanstack/tmp/
+
+# Vite
+*.local
+
+# Editor directories
+.idea/
+*.suo
+*.ntvs*
+*.njsproj
+*.sln
+*.sw?
+
+# OS
+.DS_Store
+Thumbs.db
+config.bat
